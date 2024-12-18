@@ -1,0 +1,68 @@
+pipeline {
+    agent any
+    stages {
+        stage('Clone repo') {
+            steps {
+                git 'https://github.com/josu-hodeia/repo_unir_josu'
+            }
+            post {
+                failure {
+                    error "Fallo de despliegue al clonar el repo."
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                echo "Aquí no compilo nada, es un stage build vacío"
+                bat 'dir'
+                bat 'echo %WORKSPACE%'
+            }
+            post {
+                failure {
+                    error "Fallo de despliegue en la compilación."
+                }
+            }
+        }
+        stage('Test App Code') {
+            parallel {
+                stage('Unit Test') {
+                    steps {
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            echo 'Starting UNIT Tests'
+                            bat '''
+                            set PYTHONPATH=%WORKSPACE%
+                            python -m pytest --junitxml=result-unit.xml test\\unit
+                            '''
+                        }
+                    }
+                }
+                stage('Rest Test') {
+                    steps {
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            echo 'Starting REST API Tests'
+                            bat '''
+                            set PYTHONPATH=%WORKSPACE%
+                            set FLASK_APP=app\\api.py 
+                            start /b java -jar "C:\\Program Files\\Jenkins\\wiremock\\wiremock-standalone-3.9.2.jar" --port 9090 --root-dir "%WORKSPACE%\\test\\wiremock"
+                            timeout /t 5
+                            start /b python -m flask run
+                            timeout /t 5
+                            python -m pytest --junitxml=result-rest.xml test\\rest
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        stage('Results') {
+            steps {
+                junit 'result*.xml'
+            }
+            post {
+                failure {
+                    error "Fallo de despliegue al mostrar resultado junit."
+                }
+            }
+        }
+    }
+}
