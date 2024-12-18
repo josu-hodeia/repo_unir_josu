@@ -1,8 +1,12 @@
 pipeline {
-    agent any
+    agent none
     stages {
         stage('Clone repo') {
+            agent { label 'Agente1' }
             steps {
+                bat 'whoami'
+                bat 'hostname'
+                bat 'echo %WORKSPACE%'
                 git 'https://github.com/josu-hodeia/repo_unir_josu'
             }
             post {
@@ -12,10 +16,15 @@ pipeline {
             }
         }
         stage('Build') {
+            agent { label 'Agente1' }
             steps {
+                bat 'whoami'
+                bat 'hostname'
+                bat 'echo %WORKSPACE%'
                 echo "Aquí no compilo nada, es un stage build vacío"
                 bat 'dir'
                 bat 'echo %WORKSPACE%'
+                stash includes: '**', name: 'repo_unir_josu'
             }
             post {
                 failure {
@@ -26,7 +35,12 @@ pipeline {
         stage('Test App Code') {
             parallel {
                 stage('Unit Test') {
+                    agent { label 'Agente2' }
                     steps {
+                        bat 'whoami'
+                        bat 'hostname'
+                        bat 'echo %WORKSPACE%'
+                        unstash 'repo_unir_josu'
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                             echo 'Starting UNIT Tests'
                             bat '''
@@ -37,15 +51,20 @@ pipeline {
                     }
                 }
                 stage('Rest Test') {
+                    agent { label 'Agente2' }
                     steps {
+                        bat 'whoami'
+                        bat 'hostname'
+                        bat 'echo %WORKSPACE%'
+                        unstash 'repo_unir_josu'
                         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                             echo 'Starting REST API Tests'
                             bat '''
                             set PYTHONPATH=%WORKSPACE%
                             set FLASK_APP=app\\api.py 
-                            start /b java -jar "C:\\Program Files\\Jenkins\\wiremock\\wiremock-standalone-3.9.2.jar" --port 9090 --root-dir "%WORKSPACE%\\test\\wiremock"
+                            start /b java -jar "C:\\Program Files\\Jenkins\\wiremock\\wiremock-standalone-3.9.2.jar" --port 9090 --root-dir "%WORKSPACE%\\test\\wiremock"                            
                             timeout /t 5
-                            start /b python -m flask run
+                            start python -m flask run
                             timeout /t 5
                             python -m pytest --junitxml=result-rest.xml test\\rest
                             '''
@@ -55,7 +74,11 @@ pipeline {
             }
         }
         stage('Results') {
+            agent { label 'Agente1' }
             steps {
+                bat 'whoami'
+                bat 'hostname'
+                bat 'echo %WORKSPACE%'
                 junit 'result*.xml'
             }
             post {
