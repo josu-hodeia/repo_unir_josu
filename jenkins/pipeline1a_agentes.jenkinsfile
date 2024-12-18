@@ -33,9 +33,9 @@ pipeline {
             }
         }
         stage('Test App Code') {
+            agent { label 'Agente2' }
             parallel {
                 stage('Unit Test') {
-                    agent { label 'Agente2' }
                     steps {
                         bat 'whoami'
                         bat 'hostname'
@@ -51,7 +51,6 @@ pipeline {
                     }
                 }
                 stage('Rest Test') {
-                    agent { label 'Agente2' }
                     steps {
                         bat 'whoami'
                         bat 'hostname'
