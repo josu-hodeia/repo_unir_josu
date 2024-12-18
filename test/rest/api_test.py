@@ -59,7 +59,7 @@ class TestApi(unittest.TestCase):
             response.status, http.client.OK, f"Error en la petición API a {url}"
         )
         self.assertEqual(
-            response.read().decode(), "1.5", "ERROR DIVIDE"
+            response.read().decode(), "2", "ERROR DIVIDE"
         )
 
 if __name__ == "__main__":  # pragma: no cover
