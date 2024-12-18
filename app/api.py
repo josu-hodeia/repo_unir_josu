@@ -78,7 +78,7 @@ def divide(op_1, op_2):
         num_1, num_2 = util.convert_to_number(op_1), util.convert_to_number(op_2)
         return ("{}".format(CALCULATOR.divide(num_1, num_2)), http.client.OK, HEADERS)    
     except TypeError as e:
-         if "Division by zero" in str(e):
+        if "Division by zero" in str(e):
             return ("No se permite dividir por cero", http.client.NOT_ACCEPTABLE, HEADERS)
         return (str(e), http.client.BAD_REQUEST, HEADERS)
 
