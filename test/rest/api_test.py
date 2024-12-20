@@ -61,6 +61,12 @@ class TestApi(unittest.TestCase):
         self.assertEqual(
             response.read().decode(), "2.0", "ERROR DIVIDE"
         )
+    def test_api_dividezero(self):
+        url = f"{BASE_URL}/calc/divide/50/0"
+        response = urlopen(url, timeout=DEFAULT_TIMEOUT)
+        self.assertEqual(
+            response.status, http.client.NOT_ACCEPTABLE, f"Error en la petición API a {url}, no es divisible por zero"
+        )
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
