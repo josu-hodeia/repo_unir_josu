@@ -1,0 +1,127 @@
+pipeline {
+    agent none
+    stages {
+        stage('Clone repo') {
+            agent { label 'dev-agent' }
+            steps {
+                git 'https://github.com/josu-hodeia/repo_unir_josu'
+                bat 'whoami'
+                bat 'hostname'
+                bat 'echo %WORKSPACE%'
+                stash includes: '**', name: 'repo_unir_josu'
+            }
+            post {
+                failure {
+                    error "Fallo de despliegue al clonar el repo."
+                }
+            }
+        }
+        stage('Build') {
+            agent { label 'dev-agent' }
+            steps {
+                bat 'whoami'
+                bat 'hostname'
+                bat 'echo %WORKSPACE%'
+                echo "Aquí no compilo nada, es un stage build vacío"
+                bat 'dir'
+                bat 'echo %WORKSPACE%'
+            }
+            post {
+                failure {
+                    error "Fallo de despliegue en la compilación."
+                }
+            }
+        }
+        stage('Test App Code') {
+            parallel {
+                stage('Unit Test') {
+                    agent { label 'agente1' }
+                    steps {
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            bat 'whoami'
+                            bat 'hostname'
+                            bat 'echo %WORKSPACE%'
+                            unstash name:'repo_unir_josu'
+                            echo 'Starting UNIT Tests'
+                            bat '''
+                                set PYTHONPATH=%WORKSPACE%
+                                python -m pytest --junitxml=result-unit.xml test\\unit
+                            '''
+                            stash name:'unit-res', includes:'result-unit.xml'
+                        }
+                    }
+                    post {
+                        failure {
+                            error "Fallo de unit test."
+                        }
+                    }
+                }
+                stage('Rest Test') {
+                    agent { label 'agente2' }
+                    steps {
+                        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                            echo 'Starting REST API Tests'
+                            bat 'whoami'
+                            bat 'hostname'
+                            bat 'echo %WORKSPACE%'
+                            unstash name:'repo_unir_josu'
+                            bat '''
+                                set PYTHONPATH=%WORKSPACE%
+                                set FLASK_APP=app\\api.py 
+                                start /b java -jar "C:\\Program Files\\Jenkins\\wiremock\\wiremock-standalone-3.9.2.jar" --port 9090 --root-dir "%WORKSPACE%\\test\\wiremock"
+                                start python -m flask run
+                            '''
+                            script{
+                                def intentosMax = 10
+                                def intentos = 0
+                                def exito = false
+                                while (!exito && intentos < intentosMax) {
+                                    intentos++
+                                    try {
+                                        echo "Intento ${intentos} de conexión"
+                                        bat '''
+                                            curl -s http://localhost:5000
+                                            curl -s http://localhost:9090
+                                        '''
+                                        exito = true
+                                    } catch (Exception e) {
+                                        if (intentos >= intentosMax) {
+                                            error "Error al conectarse después de ${intentos} intentos."
+                                        }
+                                        echo "Reintentando después de un breve tiempo..."
+                                        bat 'ping -n 2 127.0.0.1 > nul'
+                                    }
+                                }
+                            }
+                            bat '''
+                                python -m pytest --junitxml=result-rest.xml test\\rest
+                            '''
+                            stash name:'rest-res', includes:'result-rest.xml'
+                        }
+                    }
+                    post {
+                        failure {
+                            error "Fallo de unit test."
+                        }
+                    }
+                }
+            }
+        }
+        stage('Results') {
+            agent { label 'dev-agent' }
+            steps {
+                unstash name:'unit-res'
+                unstash name:'rest-res'
+                bat 'whoami'
+                bat 'hostname'
+                bat 'echo %WORKSPACE%'
+                junit 'result*.xml'
+            }
+            post {
+                failure {
+                    error "Fallo de despliegue al mostrar resultado junit."
+                }
+            }
+        }
+    }
+}
