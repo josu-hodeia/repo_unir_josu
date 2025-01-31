@@ -33,7 +33,6 @@ pipeline {
                                 python -m pytest --junitxml=result-unit.xml test\\unit
                             '''
                             stash name:'unit-res', includes:'result-unit.xml'
-                            junit 'result*.xml'
                         }
                     }
                     post {
@@ -82,7 +81,6 @@ pipeline {
                                 python -m pytest --junitxml=result-rest.xml test\\rest
                             '''
                             stash name: 'rest-res', includes: 'result-rest.xml'
-                            junit 'result*.xml'
                         }
                     }
                     post {
@@ -90,6 +88,18 @@ pipeline {
                             error "Fallo de REST API test."
                         }
                     }
+                }
+            }
+        }
+        stage('Resultados JUNIT') {
+            steps {
+                unstash name: 'rest-res'
+                unstash name: 'unit-res'
+                junit 'result*.xml'
+            }
+            post {
+                failure {
+                    error "Fallo de despliegue al mostrar resultado junit."
                 }
             }
         }
