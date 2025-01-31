@@ -1,0 +1,162 @@
+pipeline {
+    agent any
+    parameters {
+        choice(name: 'branch', choices: ['master', 'develop'], description: 'Choose the branch to build')
+    }
+    stages {
+        stage('Get code from repo') {
+            steps {
+                git branch: '${branch}', url: 'https://github.com/josu-hodeia/repo_unir_josu'
+                bat 'whoami'
+                bat 'hostname'
+                bat 'echo %WORKSPACE%'
+                stash includes: '**', name: 'repo_unir_josu'
+            }
+            post {
+                failure {
+                    error "Fallo de despliegue al clonar el repo."
+                }
+            }
+        }
+        stage('Test App Code') {
+            parallel {
+                stage('Unit Test') {
+                    steps {
+                        catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+                            bat 'whoami'
+                            bat 'hostname'
+                            bat 'echo %WORKSPACE%'
+                            unstash name:'repo_unir_josu'
+                            echo 'Starting UNIT Tests'
+                            bat '''
+                                set PYTHONPATH=%WORKSPACE%
+                                python -m pytest --junitxml=result-unit.xml test\\unit
+                            '''
+                            stash name:'unit-res', includes:'result-unit.xml'
+                            junit 'result*.xml'
+                        }
+                    }
+                    post {
+                        failure {
+                            error "Fallo de unit test."
+                        }
+                    }
+                }
+                stage('Rest Test') {
+                    steps {
+                        catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
+                            echo 'Starting REST API Tests'
+                            bat 'whoami'
+                            bat 'hostname'
+                            bat 'echo %WORKSPACE%'
+                            unstash name: 'repo_unir_josu'
+                            bat '''
+                                set PYTHONPATH=%WORKSPACE%
+                                set FLASK_APP=app\\api.py 
+                                start /b java -jar "C:\\Program Files\\Jenkins\\wiremock\\wiremock-standalone-3.9.2.jar" --port 9090 --root-dir "%WORKSPACE%\\test\\wiremock"
+                                start /b python -m flask run
+                            '''
+                            script {
+                                def intentosMax = 10
+                                def intentos = 0
+                                def exito = false
+                                while (!exito && intentos < intentosMax) {
+                                    intentos++
+                                    try {
+                                        echo "Intento ${intentos} de conexión"
+                                        bat '''
+                                            curl -s http://localhost:5000
+                                            curl -s http://localhost:9090
+                                        '''
+                                        exito = true
+                                    } catch (Exception e) {
+                                        if (intentos >= intentosMax) {
+                                            error "Error al conectarse después de ${intentos} intentos."
+                                        }
+                                        echo "Reintentando después de un breve tiempo..."
+                                        bat 'ping -n 2 127.0.0.1 > nul'
+                                    }
+                                }
+                            }
+                            bat '''
+                                python -m pytest --junitxml=result-rest.xml test\\rest
+                            '''
+                            stash name: 'rest-res', includes: 'result-rest.xml'
+                            junit 'result*.xml'
+                        }
+                    }
+                    post {
+                        failure {
+                            error "Fallo de REST API test."
+                        }
+                    }
+                }
+            }
+        }
+        stage('Static'){
+            steps{
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    bat '''
+                        python -m flake8 --exit-zero --format=pylint app>flake8.out
+                    '''
+                    recordIssues tools: [flake8(name:'Flake8', pattern:'flake8.out')], 
+                                qualityGates:[
+                                    [threshold: 8, type: 'TOTAL', unstable:true],
+                                    [threshold: 10, type: 'TOTAL', unstable:false]]
+                }
+            }
+        }
+        stage('Security Testing'){
+            steps{
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    bat '''
+                        python -m bandit --exit-zero -r . -f custom -o bandit.out --msg-template "{abspath}:{line}:[{test_id}]{msg}"
+                    '''
+                    recordIssues tools: [pyLint(name:'Bandit', pattern:'bandit.out')], 
+                                 qualityGates:[
+                                    [threshold: 2, type: 'TOTAL', unstable:true],
+                                    [threshold: 4, type: 'TOTAL', unstable:false]]
+                }
+            }
+        }
+        stage('Coverage'){
+            steps{
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    bat '''
+                        python -m coverage run --branch --source=app --omit=app\\_init_.py,app\\api.py -m pytest test\\unit
+                        python -m coverage xml
+                    '''
+                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                        cobertura coberturaReportFile:'coverage.xml', 
+                                  conditionalCoverageTargets: '80,90,100',
+                                  lineCoverageTargets: '85,95,100'
+                    }
+                }
+            }
+        }
+        stage('Performance'){
+            steps{
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    bat '''
+                        set PYTHONPATH=%WORKSPACE%
+                        set FLASK_APP=app\\api.py
+                        start python -m flask run
+                        ping -n 6 127.0.0.1 > nul
+                        C:\\xampp\\apache\\apache-jmeter-5.6.3\\bin\\jmeter -n -t test\\jmeter\\flask.jmx -f -l flask.jtl
+                    '''
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'flask.jtl', allowEmptyArchive: true
+                    perfReport sourceDataFiles: 'flask.jtl'
+                }
+            }
+        }
+    }
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
