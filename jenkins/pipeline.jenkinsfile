@@ -1,7 +1,7 @@
 pipeline {
     agent any
     parameters {
-        choice(name: 'branch', choices: ['master', 'develop'], description: 'Choose the branch to build')
+        choice(name: 'branch', choices: ['master', 'feature_fix_coverage', 'develop'], description: 'Choose the branch to build')
     }
     stages {
         stage('Get code from repo') {
