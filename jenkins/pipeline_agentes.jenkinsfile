@@ -7,10 +7,10 @@ pipeline {
         stage('Get code from repo') {
             agent { label 'Agente1' }
             steps {
+                git branch: '${branch}', url: 'https://github.com/josu-hodeia/repo_unir_josu'
                 bat 'whoami'
                 bat 'hostname'
                 bat 'echo %WORKSPACE%'
-                git branch: '${branch}', url: 'https://github.com/josu-hodeia/repo_unir_josu'
                 stash includes: '**', name: 'repo_unir_josu'
             }
             post {
@@ -19,10 +19,10 @@ pipeline {
                 }
             }
         }
-        stage('Test App Code') {
-            agent { label 'Agente2' }
+        stage('Test App Code') {            
             parallel {
                 stage('Unit Test and Coverage') {
+                    agent { label 'Agente2' }
                     steps {
                         catchError(buildResult: 'SUCCESS', stageResult: 'SUCCESS') {
                             bat 'whoami'
