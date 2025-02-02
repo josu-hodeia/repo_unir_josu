@@ -167,12 +167,7 @@ pipeline {
                               conditionalCoverageTargets: '80,90,100',
                               lineCoverageTargets: '85,95,100'
                 }
-            }
-            post {
-                always {
-                    cleanWs()
-                }
-            }
+            }           
         }
     }
     post {
