@@ -103,6 +103,17 @@ pipeline {
                 }
             }
         }
+        stage('Coverage'){
+            steps{
+                bat '''
+                    python -m coverage run --branch --source=app --omit=app\\_init_.py,app\\api.py -m pytest test\\unit
+                    python -m coverage xml
+                '''
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    cobertura coberturaReportFile:'coverage.xml', conditionalCoverageTargets: '80,90,100', lineCoverageTargets: '85,95,100'
+                }
+            }
+        }
         stage('Static'){
             steps{
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
@@ -126,21 +137,6 @@ pipeline {
                                  qualityGates:[
                                     [threshold: 2, type: 'TOTAL', unstable:true],
                                     [threshold: 4, type: 'TOTAL', unstable:false]]
-                }
-            }
-        }
-        stage('Coverage'){
-            steps{
-                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    bat '''
-                        python -m coverage run --branch --source=app --omit=app\\_init_.py,app\\api.py -m pytest test\\unit
-                        python -m coverage xml
-                    '''
-                    catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                        cobertura coberturaReportFile:'coverage.xml', 
-                                  conditionalCoverageTargets: '80,90,100',
-                                  lineCoverageTargets: '85,95,100'
-                    }
                 }
             }
         }
